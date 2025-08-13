@@ -1,21 +1,35 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function MatchCard({ match, onJoinMatch }) {
   const [showUserInfo, setShowUserInfo] = useState(false);
-  
-  // Check if description already contains creator info
-  const hasCreatorInDescription = (description, creatorName) => {
-    if (!description || !creatorName) return false;
-    const desc = description.toLowerCase();
-    const name = creatorName.toLowerCase();
-    
-    // Check for various patterns that indicate creator info is already mentioned
-    return desc.includes(name) || 
-           desc.includes('oluşturan:') || 
-           desc.includes('ilan sahibi') || 
-           desc.includes('tarafından') ||
-           desc.includes('ben ') ||
-           desc.includes('adım ');
+  const navigate = useNavigate();
+
+  // Handle join match - join and redirect to chat room
+  const handleJoinMatch = async () => {
+    try {
+      // First join the match via API
+      const response = await fetch(`/api/v1/advert/${match.id}/join`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Error joining match:", errorData.msg);
+        // Still redirect even if join fails (maybe already joined)
+      }
+
+      // Redirect to advert chat room
+      navigate(`/advert/${match.id}`);
+    } catch (error) {
+      console.error("Error joining match:", error);
+      // Still redirect to chat room even if API fails
+      navigate(`/advert/${match.id}`);
+    }
   };
 
   // Team ads background with team photo
@@ -45,11 +59,11 @@ function MatchCard({ match, onJoinMatch }) {
           </span>
         </div>
 
-        {/* Creator Info - only show if not mentioned in description */}
-        {match.createdBy && !hasCreatorInDescription(match.description, match.createdBy.name) && (
-          <div className="mb-3">
-            <p className="text-xs text-gray-600">
-              <span className="text-gray-500">İlan sahibi: </span>
+        {/* Creator Info - always show */}
+        <div className="mb-3">
+          <p className="text-xs text-gray-600">
+            <span className="text-gray-500">İlan sahibi: </span>
+            {match.createdBy && match.createdBy.name ? (
               <button 
                 className="text-green-600 hover:text-green-700 hover:underline font-medium focus:outline-none"
                 onClick={(e) => {
@@ -59,9 +73,11 @@ function MatchCard({ match, onJoinMatch }) {
               >
                 {match.createdBy.name}
               </button>
-            </p>
-          </div>
-        )}
+            ) : (
+              <span className="text-gray-500 italic">Bilinmeyen kullanıcı</span>
+            )}
+          </p>
+        </div>
         
         <div className="space-y-2 mb-4">
           <div className="flex items-center text-gray-600">
@@ -113,7 +129,7 @@ function MatchCard({ match, onJoinMatch }) {
             </button>
           ) : (
             <button 
-              onClick={() => onJoinMatch(match.id)}
+              onClick={handleJoinMatch}
               className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-md transition-colors cursor-pointer"
               tabIndex="0"
             >
@@ -149,11 +165,11 @@ function MatchCard({ match, onJoinMatch }) {
         </span>
       </div>
 
-      {/* Creator Info - only show if not mentioned in description */}
-      {match.createdBy && !hasCreatorInDescription(match.description, match.createdBy.name) && (
-        <div className="mb-3">
-          <p className="text-xs text-gray-600">
-            <span className="text-gray-500">İlan sahibi: </span>
+      {/* Creator Info - always show */}
+      <div className="mb-3">
+        <p className="text-xs text-gray-600">
+          <span className="text-gray-500">İlan sahibi: </span>
+          {match.createdBy && match.createdBy.name ? (
             <button 
               className="text-green-600 hover:text-green-700 hover:underline font-medium focus:outline-none"
               onClick={(e) => {
@@ -163,9 +179,11 @@ function MatchCard({ match, onJoinMatch }) {
             >
               {match.createdBy.name}
             </button>
-          </p>
-        </div>
-      )}
+          ) : (
+            <span className="text-gray-500 italic">Bilinmeyen kullanıcı</span>
+          )}
+        </p>
+      </div>
       
       <div className="space-y-2 mb-4">
         <div className="flex items-center text-gray-600">
@@ -221,7 +239,7 @@ function MatchCard({ match, onJoinMatch }) {
           </button>
         ) : (
           <button 
-            onClick={() => onJoinMatch(match.id)}
+            onClick={handleJoinMatch}
             className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-md transition-colors cursor-pointer"
             tabIndex="0"
           >
@@ -231,7 +249,7 @@ function MatchCard({ match, onJoinMatch }) {
       </div>
       
       {/* User Info Popup */}
-      {showUserInfo && match.createdBy && (
+      {showUserInfo && match.createdBy && match.createdBy.name && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowUserInfo(false)}>
         <div className="bg-white rounded-lg p-6 m-4 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-between items-start mb-4">

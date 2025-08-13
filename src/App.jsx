@@ -10,6 +10,7 @@ import Signup from "./pages/auth/Signup";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import GoogleFailure from "./pages/auth/GoogleFailure";
 import ProfilePage from "./pages/ProfilePage";
+import AdvertDetailPage from "./pages/AdvertDetailPage";
 import AnimatedProfileSidebar from "./components/profile/AnimatedProfileSidebar";
 
 function AppContent() {
@@ -23,12 +24,14 @@ function AppContent() {
           <Route path="/matches" element={<MatchesPage />} />
           <Route path="/reservation" element={<ReservationPage />} />
           <Route path="/pitch-detail/:pitchId" element={<PitchDetailPage />} />
+          <Route path="/advert/:advertId" element={<AdvertDetailPage />} />
           <Route path="/tournaments" element={<TournamentsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/auth/google-failure" element={<GoogleFailure />} />
           <Route path="/auth/login" element={<Login />} />
           <Route path="/auth/signup" element={<Signup />} />
           <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+          
           <Route
             path="*"
             element={
