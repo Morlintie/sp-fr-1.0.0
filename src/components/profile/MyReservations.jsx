@@ -195,14 +195,19 @@ function MyReservations({ user }) {
           company: booking.company,
           cancelInfo: booking.cancel || null,
           cancelReason: booking.cancel?.reason || null,
+          hasAdvert: false, // Will be updated by checkAdvertForBooking
+          advertId: null,   // Will be updated by checkAdvertForBooking
         };
       });
 
+      // Update reservations with advert status
+      const reservationsWithAdvertStatus = await updateReservationsWithAdvertStatus(processedReservations);
+
       // If it's first page, replace reservations, otherwise append
       if (page === 1) {
-        setReservations(processedReservations);
+        setReservations(reservationsWithAdvertStatus);
       } else {
-        setReservations((prev) => [...prev, ...processedReservations]);
+        setReservations((prev) => [...prev, ...reservationsWithAdvertStatus]);
       }
 
       // Update pagination info
@@ -342,6 +347,8 @@ function MyReservations({ user }) {
           company: booking.company,
           cancelInfo: booking.cancel || null,
           cancelReason: booking.cancel?.reason || null,
+          hasAdvert: false, // Will be updated by checkAdvertForBooking
+          advertId: null,   // Will be updated by checkAdvertForBooking
         };
       });
 
@@ -478,6 +485,8 @@ function MyReservations({ user }) {
           company: booking.company,
           cancelInfo: booking.cancel || null,
           cancelReason: booking.cancel?.reason || null,
+          hasAdvert: false, // Will be updated by checkAdvertForBooking
+          advertId: null,   // Will be updated by checkAdvertForBooking
         };
       });
 
@@ -609,6 +618,8 @@ function MyReservations({ user }) {
           company: booking.company,
           cancelInfo: booking.cancel || null,
           cancelReason: booking.cancel?.reason || null,
+          hasAdvert: false, // Will be updated by checkAdvertForBooking
+          advertId: null,   // Will be updated by checkAdvertForBooking
         };
       });
 
@@ -740,6 +751,8 @@ function MyReservations({ user }) {
           company: booking.company,
           cancelInfo: booking.cancel || null,
           cancelReason: booking.cancel?.reason || null,
+          hasAdvert: false, // Will be updated by checkAdvertForBooking
+          advertId: null,   // Will be updated by checkAdvertForBooking
         };
       });
 
@@ -1135,6 +1148,27 @@ function MyReservations({ user }) {
 
   // Handle creating ad from reservation
   const handleCreateAdFromReservation = (reservation) => {
+    // Extract player count from players string (e.g., "11v11" -> 22, or direct number)
+    let totalPlayers = 22; // Default for 11v11
+    if (typeof reservation.players === 'string') {
+      // If format is like "11v11", extract and sum
+      const playersMatch = reservation.players.match(/(\d+)v(\d+)/);
+      if (playersMatch) {
+        totalPlayers = parseInt(playersMatch[1]) + parseInt(playersMatch[2]);
+      } else {
+        // If it's just a number string
+        const numberMatch = reservation.players.match(/(\d+)/);
+        if (numberMatch) {
+          totalPlayers = parseInt(numberMatch[1]);
+        }
+      }
+    } else if (typeof reservation.players === 'number') {
+      totalPlayers = reservation.players;
+    }
+
+    // Calculate price per person
+    const pricePerPerson = Math.round(reservation.price / totalPlayers);
+
     // Prepare data for CreateAdModal
     const adData = {
       title: `${reservation.pitchName} Maçı`,
@@ -1145,15 +1179,156 @@ function MyReservations({ user }) {
       location: reservation.pitchName,
       pitchName: reservation.pitchName,
       capacity: `${reservation.players}v${reservation.players}`,
-      price: Math.round(reservation.price / reservation.players),
+      price: pricePerPerson,
       duration: "1 saat",
     };
+
+    console.log('CreateAd data:', {
+      totalReservationPrice: reservation.price,
+      playersString: reservation.players,
+      calculatedTotalPlayers: totalPlayers,
+      pricePerPerson: pricePerPerson
+    });
 
     // Store data in localStorage to pass to matches page
     localStorage.setItem("createListingData", JSON.stringify(adData));
 
     // Navigate to matches page with create action
     navigate("/matches?action=create");
+  };
+
+  // Check if booking has an advert by booking ID
+  const checkAdvertForBooking = async (bookingId) => {
+    try {
+      console.log(`Checking advert for booking ID: ${bookingId}`);
+      
+      // Try method 1: Specific endpoint
+      const response = await fetch(`/api/v1/advert/booking/${bookingId}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      console.log(`Response status: ${response.status}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Advert found for booking:', data);
+        return {
+          hasAdvert: true,
+          advertId: data.advertId || data._id || data.id
+        };
+      } else if (response.status === 404) {
+        console.log('No advert found for booking (404)');
+        return {
+          hasAdvert: false,
+          advertId: null
+        };
+      } else {
+        console.log('API error, trying alternative method...');
+        
+        // Try method 2: Get all user adverts and filter
+        const allAdvertsResponse = await fetch('/api/v1/advert/user', {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (allAdvertsResponse.ok) {
+          const allAdvertsData = await allAdvertsResponse.json();
+          console.log('All user adverts:', allAdvertsData);
+          
+          // Find advert with matching booking ID
+          const matchingAdvert = allAdvertsData.adverts?.find(advert => 
+            advert.bookingId === bookingId || advert.booking === bookingId
+          );
+
+          if (matchingAdvert) {
+            console.log('Found matching advert:', matchingAdvert);
+            return {
+              hasAdvert: true,
+              advertId: matchingAdvert._id || matchingAdvert.id
+            };
+          }
+        }
+      }
+      
+      console.log('No advert found for booking');
+      return {
+        hasAdvert: false,
+        advertId: null
+      };
+    } catch (error) {
+      console.error('Error checking advert for booking:', error);
+      return {
+        hasAdvert: false,
+        advertId: null
+      };
+    }
+  };
+
+  // Update reservations with advert status
+  const updateReservationsWithAdvertStatus = async (reservations) => {
+    const updatedReservations = await Promise.all(
+      reservations.map(async (reservation) => {
+        if (reservation.status === "pending" || reservation.status === "confirmed") {
+          const advertStatus = await checkAdvertForBooking(reservation.id);
+          return {
+            ...reservation,
+            hasAdvert: advertStatus.hasAdvert,
+            advertId: advertStatus.advertId,
+          };
+        }
+        return reservation;
+      })
+    );
+    return updatedReservations;
+  };
+
+  // Handle removing ad from reservation
+  const handleRemoveAdFromReservation = async (reservation) => {
+    if (!reservation.advertId) {
+      showNotification("İlan ID'si bulunamadı.", "error");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/v1/advert/${reservation.advertId}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.msg || "İlan silinirken hata oluştu");
+      }
+
+      // Refresh reservations to update the hasAdvert status
+      const currentTab = activeTab;
+      if (currentTab === "all") {
+        fetchAllReservations(1, searchTerm);
+      } else if (currentTab === "pending") {
+        fetchPendingReservations(1, searchTerm);
+      } else if (currentTab === "confirmed") {
+        fetchConfirmedReservations(1, searchTerm);
+      } else if (currentTab === "completed") {
+        fetchCompletedReservations(1, searchTerm);
+      } else if (currentTab === "cancelled") {
+        fetchCancelledReservations(1, searchTerm);
+      }
+
+      showNotification("İlan başarıyla kaldırıldı.", "success");
+    } catch (error) {
+      console.error("Error removing ad:", error);
+      showNotification(translateMessage(error.message), "error");
+    }
   };
 
   return (
@@ -1491,12 +1666,21 @@ function MyReservations({ user }) {
 
                 {(reservation.status === "pending" ||
                   reservation.status === "confirmed") && (
-                  <button
-                    onClick={() => handleCreateAdFromReservation(reservation)}
-                    className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 hover:cursor-pointer transition-colors flex-1 sm:flex-none"
-                  >
-                    İlan Koy
-                  </button>
+                  !reservation.hasAdvert ? (
+                    <button
+                      onClick={() => handleCreateAdFromReservation(reservation)}
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-green-600 border border-green-600 rounded-lg hover:bg-green-50 hover:cursor-pointer transition-colors flex-1 sm:flex-none"
+                    >
+                      İlan Koy
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleRemoveAdFromReservation(reservation)}
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-red-600 border border-red-600 rounded-lg hover:bg-red-50 hover:cursor-pointer transition-colors flex-1 sm:flex-none"
+                    >
+                      İlandan Kaldır
+                    </button>
+                  )
                 )}
 
                 {/* Fatura butonu - sadece ödenmiş rezervasyonlarda */}

@@ -390,19 +390,7 @@ function ReservationPage() {
       }
 
       if (data.pitches && Array.isArray(data.pitches)) {
-        // Filter out inactive pitches before transforming
-        const activePitches = data.pitches.filter(
-          (item) => item.status !== "inactive"
-        );
-        console.log(
-          `Filtering pitches: ${activePitches.length} active / ${
-            data.pitches.length
-          } total (${
-            data.pitches.length - activePitches.length
-          } inactive filtered out)`
-        );
-
-        const transformedPitches = activePitches.map(transformDummyDataToPitch);
+        const transformedPitches = data.pitches.map(transformDummyDataToPitch);
         console.log(
           `Loaded ${transformedPitches.length} pitches from backend (page ${page})`
         );
